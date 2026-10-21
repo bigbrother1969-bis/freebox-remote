@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Télécommande Freebox Pop</title>
+<style>
+  :root {
+    --body-top: #323845;
+    --body-bottom: #262a35;
+    --btn: #1c2029;
+    --btn-hover: #272c38;
+    --btn-active: #323947;
+    --edge: rgba(255,255,255,.07);
+    --txt: #e9ecf2;
+    --red: #e5383b;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: #14161c;
+    display: flex; justify-content: center; align-items: flex-start;
+    padding: 24px 0; font-family: system-ui, "Helvetica Neue", Arial, sans-serif;
+    color: var(--txt); user-select: none;
+  }
+
+  .remote {
+    position: relative;
+    width: 232px;
+    padding: 18px 22px 34px;
+    border-radius: 52px;
+    background: linear-gradient(180deg, var(--body-top), var(--body-bottom));
+    box-shadow: 0 18px 40px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.08);
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+  }
+
+  button {
+    font: inherit; color: var(--txt); cursor: pointer;
+    background: var(--btn); border: 1px solid var(--edge);
+    box-shadow: 0 2px 4px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
+    transition: background .08s, transform .05s;
+  }
+  button:hover { background: var(--btn-hover); }
+  button:active, button.pressed { background: var(--btn-active); transform: translateY(1px) scale(.985); }
+  button:focus-visible { outline: 2px solid #7aa7ff; outline-offset: 2px; }
+  svg { display: block; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* --- haut : micro + LED + power --- */
+  .top { width: 100%; display: flex; align-items: center; justify-content: space-between; height: 36px; }
+  .mic { width: 5px; height: 5px; border-radius: 50%; background: #0f1116; margin-left: 2px; align-self: flex-start; margin-top: 4px; }
+  .led { width: 5px; height: 5px; border-radius: 50%; background: #55607a; margin: 4px 0 0 -42px; align-self: flex-start;
+         transition: background .3s, box-shadow .3s; }
+  .led.on { background: #4cd964; box-shadow: 0 0 6px #4cd964; }
+  .led.wait { background: #ffb020; box-shadow: 0 0 6px #ffb020; }
+  .power { width: 62px; height: 36px; border-radius: 18px; display: grid; place-items: center; }
+  .power svg { width: 20px; height: 20px; }
+
+  /* --- boutons applis --- */
+  .row { display: flex; gap: 12px; width: 100%; }
+  .app { flex: 1; height: 38px; border-radius: 19px; font-weight: 800; font-size: 13px; letter-spacing: .2px; }
+  .netflix { color: var(--red); font-weight: 900; letter-spacing: .6px; font-size: 12px; }
+  .prime { font-size: 12.5px; font-weight: 700; }
+  .canal { font-size: 12.5px; font-weight: 900; }
+  .disney { font-size: 14px; font-weight: 600; }
+  .free { width: 100%; height: 38px; border-radius: 19px; color: #ff5a4f;
+          font: italic 600 25px/1 Georgia, "Times New Roman", serif; padding-bottom: 3px; }
+
+  /* --- assistant / home --- */
+  .assist, .home { height: 34px; border-radius: 17px; display: grid; place-items: center; }
+  .assist { width: 42px; }
+  .home { width: 62px; }
+  .assist svg { width: 22px; height: 22px; stroke: none; }
+  .home svg { width: 24px; height: 24px; }
+
+  /* --- croix directionnelle --- */
+  .dpad { position: relative; width: 184px; height: 184px; border-radius: 50%; margin-top: 4px;
+          background: radial-gradient(circle at 50% 35%, #232834, #191c24);
+          border: 1px solid var(--edge); box-shadow: 0 2px 5px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.05); }
+  .dpad .dir { position: absolute; width: 58px; height: 58px; border-radius: 50%; border: 0; background: transparent; box-shadow: none; }
+  .dpad .dir::after { content: ""; position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px;
+                      border-radius: 50%; background: #3d4455; }
+  .dpad .dir:hover { background: rgba(255,255,255,.05); }
+  .dpad .dir:active, .dpad .dir.pressed { background: rgba(255,255,255,.1); transform: none; }
+  .dir.up    { left: 63px; top: 4px; }
+  .dir.down  { left: 63px; bottom: 4px; }
+  .dir.left  { left: 4px;  top: 63px; }
+  .dir.right { right: 4px; top: 63px; }
+  .ok { position: absolute; left: 57px; top: 57px; width: 70px; height: 70px; border-radius: 50%; }
+
+  .back { width: 86px; height: 36px; border-radius: 18px; display: grid; place-items: center; margin-top: 2px; }
+  .back svg { width: 24px; height: 24px; }
+
+  /* --- volume / mute / programme --- */
+  .vp { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: 2px; }
+  .rocker { width: 50px; height: 120px; border-radius: 25px; display: flex; flex-direction: column; align-items: center;
+            justify-content: space-between; padding: 0; background: var(--btn); border: 1px solid var(--edge);
+            box-shadow: 0 2px 4px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05); position: relative; overflow: hidden; }
+  .rocker button { width: 100%; height: 38px; border: 0; background: transparent; box-shadow: none; border-radius: 0;
+                   font-size: 22px; font-weight: 300; line-height: 1; }
+  .rocker button:hover { background: rgba(255,255,255,.05); }
+  .rocker button:active, .rocker button.pressed { background: rgba(255,255,255,.1); transform: none; }
+  .rocker .lbl { font-size: 19px; font-weight: 500; pointer-events: none; }
+  .mute { width: 46px; height: 34px; border-radius: 17px; display: grid; place-items: center; }
+  .mute svg { width: 22px; height: 22px; }
+
+  /* --- pavé numérique --- */
+  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px 10px; width: 100%; margin-top: 4px; }
+  .pad button { height: 34px; border-radius: 17px; font-size: 20px; font-weight: 400; }
+  .pad .zero { grid-column: 2; }
+
+  /* --- appairage --- */
+  .overlay { position: fixed; inset: 0; background: rgba(8,9,12,.78); display: none; align-items: center; justify-content: center; z-index: 10; }
+  .overlay.show { display: flex; }
+  .card { background: #1d212b; border: 1px solid var(--edge); border-radius: 18px; padding: 22px; width: min(320px, 90vw);
+          box-shadow: 0 20px 50px rgba(0,0,0,.6); }
+  .card h2 { margin: 0 0 8px; font-size: 17px; }
+  .card p { margin: 0 0 14px; font-size: 13.5px; line-height: 1.45; color: #aab1c2; }
+  .card input { width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--edge); background: #14171d; color: var(--txt);
+                font-size: 20px; letter-spacing: 6px; text-align: center; text-transform: uppercase; }
+  .card .err { color: #ff7a7a; font-size: 12.5px; min-height: 18px; margin: 8px 0 0; }
+  .card .actions { display: flex; gap: 10px; margin-top: 12px; }
+  .card .actions button { flex: 1; height: 38px; border-radius: 10px; font-size: 14px; }
+  .card .primary { background: #3b6fe0; border-color: #3b6fe0; }
+  .card .primary:hover { background: #4a7df0; }
+</style>
+</head>
+<body>
+
+<div class="remote" id="remote">
+
+  <div class="top">
+    <span class="mic"></span>
+    <span class="led" id="led" title="État de la connexion"></span>
+    <button class="power" data-key="power" title="Marche / Veille (P)">
+      <svg viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg>
+    </button>
+  </div>
+
+  <div class="row">
+    <button class="app netflix" data-app="netflix" title="Netflix (N)">NETFLIX</button>
+    <button class="app prime" data-app="prime" title="Prime Video">prm video</button>
+  </div>
+  <div class="row">
+    <button class="app canal" data-app="canal" title="Canal+">CANAL+</button>
+    <button class="app disney" data-app="disney" title="Disney+">Disney+</button>
+  </div>
+
+  <button class="free" data-app="free" title="Free">free</button>
+
+  <div class="row" style="justify-content: space-between;">
+    <button class="assist" data-key="assistant" title="Assistant (A)">
+      <svg viewBox="0 0 24 24"><circle cx="8" cy="8.5" r="3.2" fill="#4285f4"/><circle cx="14.5" cy="7.5" r="2.2" fill="#ea4335"/><circle cx="16.5" cy="13" r="2.2" fill="#fbbc05"/><circle cx="11" cy="16" r="2.6" fill="#34a853"/></svg>
+    </button>
+    <button class="home" data-key="home" title="Accueil (H)">
+      <svg viewBox="0 0 24 24"><path d="M3.5 19.5v-9.2L12 4l8.5 6.3v9.2z"/></svg>
+    </button>
+  </div>
+
+  <div class="dpad">
+    <button class="dir up" data-key="up" aria-label="Haut"></button>
+    <button class="dir down" data-key="down" aria-label="Bas"></button>
+    <button class="dir left" data-key="left" aria-label="Gauche"></button>
+    <button class="dir right" data-key="right" aria-label="Droite"></button>
+    <button class="ok" data-key="ok" aria-label="OK" title="OK (Entrée)"></button>
+  </div>
+
+  <button class="back" data-key="back" title="Retour (Échap / Retour arrière)">
+    <svg viewBox="0 0 24 24"><path d="M9 7 4.5 11.5 9 16"/><path d="M4.5 11.5H15a4.5 4.5 0 0 1 0 9h-3"/></svg>
+  </button>
+
+  <div class="vp">
+    <div class="rocker">
+      <button data-key="vol_up" title="Volume + (+)">+</button>
+      <span class="lbl">V</span>
+      <button data-key="vol_down" title="Volume − (-)">−</button>
+    </div>
+    <button class="mute" data-key="mute" title="Muet (M)">
+      <svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="m16 9.5 4 5"/><path d="m20 9.5-4 5"/></svg>
+    </button>
+    <div class="rocker">
+      <button data-key="ch_up" title="Programme + (Page préc.)">+</button>
+      <span class="lbl">P</span>
+      <button data-key="ch_down" title="Programme − (Page suiv.)">−</button>
+    </div>
+  </div>
+
+  <div class="pad">
+    <button data-key="n1">1</button><button data-key="n2">2</button><button data-key="n3">3</button>
+    <button data-key="n4">4</button><button data-key="n5">5</button><button data-key="n6">6</button>
+    <button data-key="n7">7</button><button data-key="n8">8</button><button data-key="n9">9</button>
+    <button data-key="n0" class="zero">0</button>
+  </div>
+</div>
+
+<!-- Appairage -->
+<div class="overlay" id="pairing">
+  <div class="card">
+    <h2>Appairer le Player Pop</h2>
+    <p id="pair-msg">Un code s'affiche sur la TV. Saisis-le ici pour autoriser cette télécommande.</p>
+    <input id="code" maxlength="6" autocomplete="off" placeholder="••••••" spellcheck="false">
+    <p class="err" id="pair-err"></p>
+    <div class="actions">
+      <button id="pair-cancel">Annuler</button>
+      <button id="pair-ok" class="primary">Valider</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const led = document.getElementById('led');
+  const overlay = document.getElementById('pairing');
+  const codeInput = document.getElementById('code');
+  const pairErr = document.getElementById('pair-err');
+  let state = 'offline';
+  let pairingAsked = false;
+
+  async function post(url, body) {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: body ? {'Content-Type': 'application/json'} : {},
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!r.ok) throw new Error(await r.text() || r.statusText);
+    return r.json();
+  }
+
+  function flash(el) {
+    el.classList.add('pressed');
+    setTimeout(() => el.classList.remove('pressed'), 110);
+  }
+
+  async function press(el) {
+    flash(el);
+    try {
+      if (el.dataset.key) await post('/api/key/' + el.dataset.key);
+      else if (el.dataset.app) await post('/api/app/' + el.dataset.app);
+    } catch (e) { console.warn(e.message); }
+  }
+
+  document.querySelectorAll('[data-key],[data-app]').forEach(b =>
+    b.addEventListener('click', () => press(b)));
+
+  // Raccourcis clavier
+  const map = {
+    ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+    Enter: 'ok', Escape: 'back', Backspace: 'back',
+    '+': 'vol_up', '=': 'vol_up', '-': 'vol_down', m: 'mute', M: 'mute',
+    PageUp: 'ch_up', PageDown: 'ch_down', h: 'home', H: 'home',
+    p: 'power', P: 'power', a: 'assistant', A: 'assistant',
+    ...Object.fromEntries([...'0123456789'].map(n => [n, 'n' + n])),
+  };
+  const appKeys = { n: 'netflix', N: 'netflix' };
+  document.addEventListener('keydown', e => {
+    if (overlay.classList.contains('show') || e.ctrlKey || e.metaKey || e.altKey) return;
+    const sel = map[e.key] ? `[data-key="${map[e.key]}"]` : appKeys[e.key] ? `[data-app="${appKeys[e.key]}"]` : null;
+    if (!sel) return;
+    e.preventDefault();
+    press(document.querySelector(sel));
+  });
+
+  // Appairage
+  async function startPairing() {
+    pairErr.textContent = '';
+    codeInput.value = '';
+    overlay.classList.add('show');
+    try { await post('/api/pair/start'); codeInput.focus(); }
+    catch (e) { pairErr.textContent = "Impossible de joindre le Player : " + e.message; }
+  }
+  async function finishPairing() {
+    pairErr.textContent = '';
+    try {
+      await post('/api/pair/finish', { code: codeInput.value });
+      overlay.classList.remove('show');
+      refresh();
+    } catch (e) { pairErr.textContent = e.message || 'Échec'; }
+  }
+  document.getElementById('pair-ok').addEventListener('click', finishPairing);
+  document.getElementById('pair-cancel').addEventListener('click', () => overlay.classList.remove('show'));
+  codeInput.addEventListener('keydown', e => { if (e.key === 'Enter') finishPairing(); });
+  led.addEventListener('click', () => { if (state !== 'connected') startPairing(); });
+
+  async function refresh() {
+    try {
+      state = (await (await fetch('/api/status')).json()).state;
+    } catch { state = 'offline'; }
+    led.className = 'led' + (state === 'connected' ? ' on' : state === 'offline' ? '' : ' wait');
+    led.title = {connected: 'Connecté', offline: 'Player injoignable', needs_pairing: 'Appairage requis (clique ici)', pairing: 'Appairage en cours'}[state] || state;
+    if (state === 'needs_pairing' && !pairingAsked) { pairingAsked = true; startPairing(); }
+    if (state === 'connected') pairingAsked = false;
+  }
+  refresh();
+  setInterval(refresh, 3000);
+})();
+</script>
+</body>
+</html>
