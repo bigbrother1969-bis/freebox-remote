@@ -185,7 +185,7 @@ def _sign(cr, kind, cx, cy, color=TXT):
 
 APP_LABELS = {
     "netflix": ("NETFLIX", dict(size=12, bold=True, color=RED)),
-    "prime": ("prm video", dict(size=12.5, bold=True)),
+    "prime": ("prime video", dict(size=11.5, bold=True)),
     "canal": ("CANAL+", dict(size=13, bold=True)),
     "disney": ("Disney+", dict(size=14)),
 }
