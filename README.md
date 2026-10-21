@@ -37,7 +37,7 @@ fenêtre GTK / page web  ──HTTP──▶  app.py (aiohttp)  ──TLS──�
 Testé sous Linux Mint (Cinnamon), Python 3.12.
 
 ```bash
-git clone https://github.com/bigbrother1969-bis/freebox-remote.git freebox-remote
+git clone <url-du-depot> freebox-remote
 cd freebox-remote
 
 # Serveur : dans un environnement virtuel (Debian/Ubuntu interdisent pip global)
@@ -71,6 +71,12 @@ puis ouvre <http://127.0.0.1:8765> dans un navigateur.
 
 ## Utilisation
 
+- **Icône de notification :** clic gauche = affiche la télécommande au premier
+  plan sur l'espace de travail courant ; nouveau clic = la masque. Clic droit =
+  menu (version web, relancer le serveur, quitter). Ce comportement utilise
+  `Gtk.StatusIcon`, choisi automatiquement sous Cinnamon. Sur un autre bureau,
+  l'icône ouvre un menu dont le premier élément fait la même chose. On peut
+  forcer un mode avec `FREEBOX_REMOTE_BACKEND=gtk`, `appindicator` ou `xapp`.
 - Clique sur les boutons, ou utilise le clavier : flèches, Entrée (OK),
   Échap / Retour arrière (retour), `0`-`9`, `+` / `-` (volume), `M` (muet),
   Page préc. / suiv. (programme), `H` (accueil), `P` (veille), `A` (assistant),

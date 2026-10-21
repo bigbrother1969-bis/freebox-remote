@@ -5,9 +5,16 @@
     sudo apt install python3-gi python3-gi-cairo python3-cairo gir1.2-gtk-3.0 \\
         gir1.2-ayatanaappindicator3-0.1
 
-Clic sur l'icône -> menu : ouvrir la télécommande (fenêtre native détourée),
-version web, relancer le serveur, quitter.
+Clic gauche sur l'icône : afficher la télécommande (fenêtre native détourée) au
+premier plan sur l'espace de travail courant ; un nouveau clic la masque.
+Clic droit : menu (version web, relancer le serveur, quitter).
 Le serveur (app.py, dans le venv) est démarré automatiquement.
+
+Mode de l'icône (variable FREEBOX_REMOTE_BACKEND, « auto » par défaut) :
+  gtk          Gtk.StatusIcon : vrai clic gauche. Choisi sous Cinnamon.
+  appindicator le clic ouvre un menu dont le premier élément affiche / masque
+               la télécommande (GNOME et autres bureaux).
+  xapp         XApp.StatusIcon, sur demande seulement.
 """
 import argparse
 import fcntl
@@ -17,12 +24,22 @@ import signal
 import socket
 import subprocess
 import sys
+import warnings
 from pathlib import Path
 
 import gi
 
+# Gtk.StatusIcon est « deprecated » mais c'est lui qui donne le clic gauche sous Cinnamon.
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
+
+try:
+    gi.require_version("XApp", "1.0")
+    from gi.repository import XApp  # noqa: E402
+except (ValueError, ImportError):
+    XApp = None
 
 try:
     gi.require_version("AyatanaAppIndicator3", "0.1")
@@ -99,10 +116,11 @@ class Tray:
         self.proc = None
         self._tries = 0
         self.window = None
+        self._ts = 0  # horodatage X du dernier clic (pour passer au premier plan)
 
         self.menu = Gtk.Menu()
-        self.open_item = Gtk.MenuItem(label="Ouvrir la télécommande")
-        self.open_item.connect("activate", self.open_remote)
+        self.open_item = Gtk.MenuItem(label="Afficher / masquer la télécommande")
+        self.open_item.connect("activate", self.toggle_remote)
         web_item = Gtk.MenuItem(label="Ouvrir la version web")
         web_item.connect("activate", lambda *_: launch_window())
         restart = Gtk.MenuItem(label="Relancer le serveur")
@@ -119,12 +137,38 @@ class Tray:
             self.menu.append(item)
         self.menu.show_all()
 
-        print(
-            "[tray] démarrage, backend :",
-            AppIndicator.__name__ if AppIndicator is not None else "Gtk.StatusIcon",
-            flush=True,
-        )
-        if AppIndicator is not None:
+        choice = os.environ.get("FREEBOX_REMOTE_BACKEND", "auto").lower()
+        if choice == "auto":
+            desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").lower()
+            if "cinnamon" in desktop:
+                # Cinnamon : l'icône GTK donne un vrai clic gauche (XApp.StatusIcon
+                # n'arrive pas à se déclarer sur certaines installations).
+                choice = "gtk"
+            elif AppIndicator is not None:
+                choice = "appindicator"
+            else:
+                choice = "gtk"
+        if choice == "xapp" and XApp is not None:
+            backend = "xapp"
+        elif choice == "appindicator" and AppIndicator is not None:
+            backend = "appindicator"
+        else:
+            backend = "gtk"
+        print("[tray] démarrage, backend :", backend, flush=True)
+
+        if backend == "xapp":
+            # Clic gauche = signal « activate » (bascule) ; clic droit = menu.
+            self.xapp = XApp.StatusIcon()
+            self.xapp.set_name("freebox-remote")
+            self.xapp.set_icon_name(str(HERE / "freebox-remote.svg"))
+            self.xapp.set_tooltip_text("Télécommande Freebox")
+            try:
+                self.xapp.set_secondary_menu(self.menu)
+            except AttributeError:  # anciennes versions de libxapp
+                self.xapp.set_menu(self.menu)
+            self.xapp.connect("activate", self.on_xapp_activate)
+            self.xapp.set_visible(True)
+        elif backend == "appindicator":
             self.indicator = AppIndicator.Indicator.new_with_path(
                 "freebox-remote",
                 "freebox-remote",
@@ -137,7 +181,7 @@ class Tray:
         else:  # repli : Gtk.StatusIcon (clic gauche = ouvrir, clic droit = menu)
             self.icon = Gtk.StatusIcon.new_from_file(str(HERE / "freebox-remote.svg"))
             self.icon.set_tooltip_text("Télécommande Freebox")
-            self.icon.connect("activate", self.open_remote)
+            self.icon.connect("activate", self.toggle_remote)
             self.icon.connect(
                 "popup-menu",
                 lambda _i, button, time: self.menu.popup(
@@ -177,7 +221,21 @@ class Tray:
         GLib.timeout_add(500, lambda: (self.start_server(), False)[1])
 
     # --- fenêtre ---------------------------------------------------------
-    def open_remote(self, *_):
+    def on_xapp_activate(self, *args):
+        """Clic sur l'icône XApp : args = (icône, bouton, horodatage)."""
+        button = args[-2] if len(args) >= 3 else 1
+        if button in (1, 2):  # clic gauche ou milieu
+            self.toggle_remote(timestamp=int(args[-1]) if len(args) >= 3 else 0)
+
+    def toggle_remote(self, *_, timestamp=0):
+        """Masque la télécommande si elle est visible ici, sinon l'affiche."""
+        if self.window is not None and self.window.is_shown_here():
+            self.window.hide()
+        else:
+            self.open_remote(timestamp=timestamp)
+
+    def open_remote(self, *_, timestamp=0):
+        self._ts = timestamp or Gtk.get_current_event_time()
         self.start_server()
         self._tries = 0
         GLib.timeout_add(250, self._open_when_ready)
@@ -200,7 +258,7 @@ class Tray:
                 print("[tray] fenêtre native indisponible :", err, flush=True)
                 launch_window()
                 return
-        self.window.show_remote()
+        self.window.show_remote(self._ts)
 
     def reopen(self):
         """Appelé par SIGUSR1 quand une 2e instance demande l'ouverture."""

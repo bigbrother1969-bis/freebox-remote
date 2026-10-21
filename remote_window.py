@@ -18,6 +18,12 @@ gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
+try:  # X11 : gestion des espaces de travail (Cinnamon, GNOME, Xfce…)
+    gi.require_version("GdkX11", "3.0")
+    from gi.repository import GdkX11  # noqa: E402
+except (ValueError, ImportError):
+    GdkX11 = None
+
 from remote_art import HEIGHT, MARGIN, WIDTH, RemoteArt  # noqa: E402
 
 KEYMAP = {
@@ -106,7 +112,31 @@ class RemoteWindow(Gtk.Window):
         GLib.timeout_add_seconds(3, self._poll)
 
     # --- affichage ---------------------------------------------------------
-    def show_remote(self):
+    def _x11_window(self):
+        win = self.get_window()
+        if GdkX11 is not None and isinstance(win, GdkX11.X11Window):
+            return win
+        return None
+
+    def is_shown_here(self):
+        """Vrai si la fenêtre est affichée sur l'espace de travail courant."""
+        win = self.get_window()
+        if not self.get_visible() or win is None:
+            return False
+        if win.get_state() & Gdk.WindowState.ICONIFIED:
+            return False
+        x11 = self._x11_window()
+        if x11 is not None:
+            try:
+                desktop = x11.get_desktop()
+                current = self.get_screen().get_current_desktop()
+                return desktop in (current, 0xFFFFFFFF)  # 0xFFFFFFFF = tous les bureaux
+            except Exception:  # noqa: BLE001  (WM sans _NET_WM_DESKTOP)
+                return True
+        return True
+
+    def show_remote(self, timestamp=0):
+        """Affiche la télécommande au premier plan, sur l'espace de travail courant."""
         if not self._placed:
             self._placed = True
             pos = self._load_position()
@@ -115,8 +145,26 @@ class RemoteWindow(Gtk.Window):
             else:
                 self.set_position(Gtk.WindowPosition.CENTER)
         self.show_all()
-        self.present()
+        self.deiconify()
+        x11 = self._x11_window()
+        if x11 is not None:
+            x11.move_to_current_desktop()  # la ramène ici si elle était ailleurs
+            timestamp = timestamp or GdkX11.x11_get_server_time(x11)
+        if timestamp:
+            self.present_with_time(timestamp)
+        else:
+            self.present()
+        # Certains gestionnaires de fenêtres refusent de la remonter : on la fait
+        # passer brièvement « toujours au-dessus » pour garantir le premier plan.
+        if not self.above_item.get_active():
+            self.set_keep_above(True)
+            GLib.timeout_add(400, self._drop_above)
         self._poll()
+
+    def _drop_above(self):
+        if not self.above_item.get_active():
+            self.set_keep_above(False)
+        return False
 
     def on_draw(self, _area, cr):
         cr.set_operator(cairo.OPERATOR_SOURCE)
