@@ -37,7 +37,7 @@ fenêtre GTK / page web  ──HTTP──▶  app.py (aiohttp)  ──TLS──�
 Testé sous Linux Mint (Cinnamon), Python 3.12.
 
 ```bash
-git clone <url-du-depot> freebox-remote
+git clone https://github.com/bigbrother1969-bis/freebox-remote.git freebox-remote
 cd freebox-remote
 
 # Serveur : dans un environnement virtuel (Debian/Ubuntu interdisent pip global)
